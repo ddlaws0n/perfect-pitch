@@ -2,7 +2,7 @@ import { Context } from 'hono'
 
 // Context type for API endpoints, including environment bindings and user info
 export interface ApiContext {
-  Bindings: CloudflareBindings
+  Bindings: Env
   Variables: {
     username: string
   }
@@ -33,7 +33,6 @@ export enum InterviewTitle {
   SeniorDataAnalyst = 'Senior Data Analyst Interview',
   BusinessAnalyst = 'BusinessAnalyst',
   TechnicalAccountManager = 'Technical Account Manager Interview',
-  SystemArchitect = 'System Architect Interview',
 }
 
 // Tracks the current state of an interview session.

@@ -1,51 +1,100 @@
 /**
- * For more details on how to configure Wrangler, refer to:
- * https://developers.cloudflare.com/workers/wrangler/configuration/
+ * Wrangler Configuration
+ *
+ * This file configures Cloudflare Wrangler for deploying the Worker.
+ *
+ * Documentation: https://developers.cloudflare.com/workers/wrangler/configuration/
  */
 {
-	"$schema": "node_modules/wrangler/config-schema.json",
-	"name": "perfect-pitch",
-	"main": "src/index.ts",
-	"compatibility_date": "2025-05-03",
-	"assets": {
-		"binding": "ASSETS",
-		"directory": "./public"
-	},
-	"observability": {
-		"enabled": true
-	}
-	/**
-	 * Smart Placement
-	 * Docs: https://developers.cloudflare.com/workers/configuration/smart-placement/#smart-placement
-	 */
-	// "placement": { "mode": "smart" },
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "perfect-pitch",
+  "main": "src/index.ts",
+  /**
+   * Compatibility Date: Ensures the Worker runs with a specific version of the Workers runtime.
+   * Update this date periodically to adopt new features and improvements.
+   * Docs: https://developers.cloudflare.com/workers/platform/compatibility-dates/
+   */
+  "compatibility_date": "2024-11-06", // Note: This date is far in the future. Ensure it reflects a tested runtime version. Consider using a recent, stable date.
 
-	/**
-	 * Bindings
-	 * Bindings allow your Worker to interact with resources on the Cloudflare Developer Platform, including
-	 * databases, object storage, AI inference, real-time communication and more.
-	 * https://developers.cloudflare.com/workers/runtime-apis/bindings/
-	 */
+  /**
+   * Smart Placement: Optimizes Worker placement for reduced latency.
+   * Docs: https://developers.cloudflare.com/workers/configuration/smart-placement/
+   */
+  "placement": { "mode": "smart" },
 
-	/**
-	 * Environment Variables
-	 * https://developers.cloudflare.com/workers/wrangler/configuration/#environment-variables
-	 */
-	// "vars": { "MY_VARIABLE": "production_value" },
-	/**
-	 * Note: Use secrets to store sensitive data.
-	 * https://developers.cloudflare.com/workers/configuration/secrets/
-	 */
+  /**
+   * Static Assets: Defines the directory containing static files to be served.
+   * Docs: https://developers.cloudflare.com/workers/static-assets/binding/
+   */
+  "assets": {
+    "directory": "public" // Specifies the directory containing static assets.
+  },
 
-	/**
-	 * Static Assets
-	 * https://developers.cloudflare.com/workers/static-assets/binding/
-	 */
-	// "assets": { "directory": "./public/", "binding": "ASSETS" },
+  /**
+   * Observability: Enables built-in observability features.
+   * Consider integrating with third-party monitoring tools for more advanced insights if needed.
+   */
+  "observability": {
+    "enabled": true
+  },
 
-	/**
-	 * Service Bindings (communicate between multiple Workers)
-	 * https://developers.cloudflare.com/workers/wrangler/configuration/#service-bindings
-	 */
-	// "services": [{ "binding": "MY_SERVICE", "service": "my-service" }]
+  /**
+   * Service Bindings: Enables communication between this Worker and other Worker services.
+   * Add bindings here if your Worker needs to interact with other services.
+   * Docs: https://developers.cloudflare.com/workers/wrangler/configuration/#service-bindings
+   * Example (uncomment and replace placeholders if needed):
+   * "services": [
+   *   { "binding": "MY_OTHER_WORKER", "service": "name-of-other-worker-service" }
+   * ],
+   */
+  // "services": [], // Keep empty or remove if no service bindings are currently needed.
+
+  /**
+   * Durable Objects: Provides access to strongly consistent storage.
+   * Docs: https://developers.cloudflare.com/workers/platform/durable-objects/
+   */
+  "durable_objects": {
+    "bindings": [
+      {
+        "name": "INTERVIEW", // Binding name used in the Worker code (e.g., env.INTERVIEW)
+        "class_name": "Interview" // The exported class name from your Worker code (src/interview.ts)
+      }
+    ]
+  },
+
+  /**
+   * Migrations: Manages updates to Durable Object classes.
+   * Required when introducing new DO classes or changing existing ones referenced in `durable_objects`.
+   * Docs: https://developers.cloudflare.com/workers/platform/durable-objects/migrations/
+   */
+  "migrations": [
+    {
+      "tag": "v1", // A unique identifier for this migration step
+      "new_classes": ["Interview"] // List of new or renamed Durable Object classes included in this migration
+      // Use "renamed_classes" or "deleted_classes" as needed for other migration types.
+    }
+  ],
+
+  /**
+   * AI Binding: Provides access to Cloudflare's AI/ML models.
+   * Docs: https://developers.cloudflare.com/workers/ai/get-started/
+   */
+  "ai": {
+    "binding": "AI" // Binding name used in the Worker code (e.g., env.AI)
+  }
+
+  /**
+   * Environment Variables & Secrets:
+   * - Use `vars` for non-sensitive configuration accessible via `env`.
+   *   Docs: https://developers.cloudflare.com/workers/wrangler/configuration/#environment-variables
+   * - Use secrets for sensitive data (API keys, tokens). Manage secrets using `wrangler secret put <SECRET_NAME>`.
+   *   Secrets are also accessible via `env` but are not stored in wrangler.jsonc.
+   *   Docs: https://developers.cloudflare.com/workers/configuration/secrets/
+   *
+   * Example vars (uncomment and add variables if needed):
+   * "vars": {
+   *   "API_ENDPOINT": "https://api.example.com",
+   *   "DEBUG_MODE": "false"
+   * },
+   */
 }
