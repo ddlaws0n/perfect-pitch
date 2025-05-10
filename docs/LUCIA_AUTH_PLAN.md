@@ -9,15 +9,27 @@ This plan references:
 - [`docs/ARCHITECTURE.md`](./ARCHITECTURE.md) for the existing system overview.
 - [`docs/D1_DATABASE_PLAN.md`](./D1_DATABASE_PLAN.md) for the D1 database schema which will be extended.
 
+## 1.A Development Tooling & Workflow
+
+This project adheres to specific tooling and workflow guidelines:
+
+- **Package Manager:** All project operations **must** use `pnpm`. This includes installing dependencies, running scripts, etc.
+- **Cloudflare Worker Types:**
+  - Cloudflare Worker types are generated using the command `wrangler types`.
+  - Whenever Cloudflare Wrangler is updated, or changes are made that might affect worker types, run `pnpm run type-check` (or the relevant script for `tsc`) to refresh types and perform a type check.
+  - **Crucially, the `@cloudflare/workers-types` package MUST NOT BE USED.** This package has been replaced by the `wrangler types` generation approach.
+- **Testing Framework:** The project uses **Vitest** for all testing purposes.
+- **Network Mocking:** Network requests in tests are mocked using **Mock Service Worker (MSW)**, specifically with `@mswjs/interceptors`.
+
 ## 2. Research (Action Required)
 
 **Objective:** To confirm Lucia Auth's suitability, best practices, and specific integration patterns for Cloudflare Workers and Cloudflare D1.
 
-**Status:** Direct research using MCP tools (Perplexity, Firecrawl) could not be performed in the current "Architect" mode.
+**Status:** The SPARC Orchestrator can initiate research tasks (e.g., using Perplexity or context7) to obtain the most up-to-date and relevant documentation. Direct research using MCP tools (Perplexity, Firecrawl) by other modes may also be an option.
 
 **Action Required:**
 
-- The development team should conduct research on Lucia Auth, focusing on:
+- The development team, potentially assisted by the SPARC Orchestrator, should conduct research on Lucia Auth, focusing on:
   - Official documentation and examples for Cloudflare Workers/Pages.
   - Community packages or adapters for Cloudflare D1 (e.g., `@lucia-auth/adapter-d1`).
   - Best practices for session management, password hashing (e.g., Argon2id, scrypt), and security in a serverless context with Lucia.
@@ -87,7 +99,7 @@ _Note: The exact schema for `user_keys` might vary based on Lucia's version and 
 
 ### 3.3. Password Handling
 
-- **Hashing Algorithm:** Use a strong, modern hashing algorithm recommended by Lucia Auth and security best practices (e.g., Argon2id or scrypt if supported in Workers, otherwise bcrypt).
+- **Hashing Algorithm:** Use **`argon2`** for password hashing, as it is a strong, modern hashing algorithm recommended by Lucia Auth and security best practices.
 - **Storage:** Hashed passwords will be stored in the `Users` table (or `user_keys` table). Plaintext passwords will never be stored.
 
 ### 3.4. Session Management
@@ -155,7 +167,9 @@ graph TD
 
     - `lucia`: The core Lucia Auth library.
     - `@lucia-auth/adapter-d1`: The D1 adapter for Lucia.
-    - A password hashing library (e.g., `oslo` which provides Argon2id/scrypt/bcrypt, or a Worker-compatible equivalent).
+    - `argon2`: For password hashing.
+    - `vitest`: The testing framework.
+    - `@mswjs/interceptors`: For network mocking in tests.
 
 2.  **Configure Lucia Auth:**
 
@@ -220,7 +234,8 @@ graph TD
     - Implement logout functionality to call `/api/v1/auth/logout`.
 
 8.  **Testing:**
-    - Write unit and integration tests for auth logic.
+    - Write unit and integration tests for auth logic using **Vitest**.
+    - Utilize **Mock Service Worker (MSW)** with `@mswjs/interceptors` for network mocking during tests.
     - Test all authentication flows: registration, login, logout, session expiry, protected routes, WebSocket auth.
     - Test with `wrangler dev --local` and in a deployed Cloudflare environment.
 

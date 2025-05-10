@@ -1,40 +1,29 @@
-import { Context, Hono } from 'hono'
-import { setCookie } from 'hono/cookie'
-import { BadRequestError } from '../errors'
-import { ApiContext } from '../types'
+import { Hono } from 'hono'
+// Placeholder for actual auth logic using Lucia
 
-export const authenticateUser = async (ctx: Context) => {
-  // Extract username from request body
-  const { username } = await ctx.req.json()
+export const authApp = new Hono()
 
-  // Make sure username was provided
-  if (!username) {
-    throw new BadRequestError('Username is required')
-  }
+// Define routes like /register, /login, /logout, /me
+// Example:
+// authApp.post('/register', (c) => {
+//   // ... registration logic
+//   return c.json({ message: 'User registered successfully' }, 201);
+// });
 
-  // Create a secure cookie to track the user's session
-  // This cookie will:
-  // - Be HTTP-only for security (no JS access)
-  // - Work across all routes via path="/"
-  // - Last for 24 hours
-  // - Only be sent in same-site requests to prevent CSRF
-  setCookie(ctx, 'username', username, {
-    httpOnly: true,
-    path: '/',
-    maxAge: 60 * 60 * 24,
-    sameSite: 'Strict',
-  })
+// authApp.post('/login', (c) => {
+//   // ... login logic
+//   return c.json({ message: 'Logged in successfully' });
+// });
 
-  // Let the client know login was successful
-  return ctx.json({ success: true })
-}
+// authApp.post('/logout', (c) => {
+//   // ... logout logic
+//   return c.json({ message: 'Logged out successfully' });
+// });
 
-// Set up authentication-related routes
-export const configureAuthRoutes = () => {
-  const router = new Hono<ApiContext>()
-
-  // POST /login - Authenticate user and create session
-  router.post('/login', authenticateUser)
-
-  return router
-}
+// authApp.get('/me', (c) => {
+//   // ... get current user logic (needs auth middleware)
+//   // const user = c.get('user'); // Assuming middleware sets this
+//   // if (!user) return c.json({ error: 'Unauthorized' }, 401);
+//   // return c.json(user);
+//   return c.json({ placeholder: "user data" });
+// });
