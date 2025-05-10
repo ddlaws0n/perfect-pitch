@@ -81,7 +81,19 @@
    */
   "ai": {
     "binding": "AI" // Binding name used in the Worker code (e.g., env.AI)
-  }
+  },
+
+  /**
+   * D1 Database Bindings: Provides access to Cloudflare D1 databases.
+   * Docs: https://developers.cloudflare.com/d1/get-started/
+   */
+  "d1_databases": [
+    {
+      "binding": "DB", // Binding name used in the Worker code (e.g., env.DB)
+      "database_name": "perfect-pitch-db",
+      "database_id": "00cb4b4a-7090-482a-b3fc-f2c143fb7998"
+    }
+  ]
 
   /**
    * Environment Variables & Secrets:
