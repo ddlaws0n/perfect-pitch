@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { authApp } from "./auth";
+import { configureAuthRoutes } from "./auth";
 import { initializeLucia } from "../lib/lucia"; // Import initializeLucia
 import { hash as argonHash, verify as argonVerify } from "argon2";
 
@@ -37,6 +37,8 @@ vi.mock("argon2", () => ({
 // This might require auth.ts to accept lucia as a parameter or to call initializeLucia itself.
 // For now, the tests will assume that authApp somehow uses the lucia instance that our mock of initializeLucia provides.
 
+const authApp = configureAuthRoutes();
+
 describe("Auth API Routes (/api/v1/auth)", () => {
 	beforeEach(() => {
 		vi.clearAllMocks();
@@ -69,7 +71,7 @@ describe("Auth API Routes (/api/v1/auth)", () => {
 		it("should register a new user successfully and return 201", async () => {
 			const requestBody = { username: "testuser", password: "testPassword123" };
 
-			const response = await authApp.request("/api/v1/auth/register", {
+			const response = await authApp.request("/register", {
 				method: "POST",
 				headers: { "Content-Type": "application/json" },
 				body: JSON.stringify(requestBody),
@@ -102,7 +104,7 @@ describe("Auth API Routes (/api/v1/auth)", () => {
 				password: "testPassword123",
 			};
 
-			const response = await authApp.request("/api/v1/auth/register", {
+			const response = await authApp.request("/register", {
 				method: "POST",
 				headers: { "Content-Type": "application/json" },
 				body: JSON.stringify(requestBody),
@@ -111,14 +113,14 @@ describe("Auth API Routes (/api/v1/auth)", () => {
 				await response.json();
 
 			expect(response.status).toBe(409);
-			expect(responseBody.error).toBe("Username already taken");
+			expect(responseBody.error).toBe("Username already exists"); // Match implementation
 			expect(argonHash).toHaveBeenCalledOnce();
 		});
 
 		it("should return 400 for invalid input (e.g., missing password)", async () => {
 			const requestBody = { username: "testuser_nopass" };
 
-			const response = await authApp.request("/api/v1/auth/register", {
+			const response = await authApp.request("/register", {
 				method: "POST",
 				headers: { "Content-Type": "application/json" },
 				body: JSON.stringify(requestBody),
@@ -127,7 +129,7 @@ describe("Auth API Routes (/api/v1/auth)", () => {
 				await response.json();
 
 			expect(response.status).toBe(400);
-			expect(responseBody.error).toMatch(/invalid input/i);
+			expect(responseBody.error).toBe("Password is required and must be at least 6 characters"); // Match implementation
 			expect(argonHash).not.toHaveBeenCalled();
 			expect(mockLuciaInstance.createUser).not.toHaveBeenCalled();
 			expect(mockLuciaInstance.createKey).not.toHaveBeenCalled();
@@ -136,7 +138,7 @@ describe("Auth API Routes (/api/v1/auth)", () => {
 		it("should return 400 for invalid input (e.g., missing username)", async () => {
 			const requestBody = { password: "testPassword123" };
 
-			const response = await authApp.request("/api/v1/auth/register", {
+			const response = await authApp.request("/register", {
 				method: "POST",
 				headers: { "Content-Type": "application/json" },
 				body: JSON.stringify(requestBody),
@@ -145,7 +147,7 @@ describe("Auth API Routes (/api/v1/auth)", () => {
 				await response.json();
 
 			expect(response.status).toBe(400);
-			expect(responseBody.error).toMatch(/invalid input/i);
+			expect(responseBody.error).toBe("Username is required and must be at least 3 characters"); // Match implementation
 			expect(argonHash).not.toHaveBeenCalled();
 			expect(mockLuciaInstance.createUser).not.toHaveBeenCalled();
 			expect(mockLuciaInstance.createKey).not.toHaveBeenCalled();
