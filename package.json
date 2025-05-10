@@ -3,12 +3,23 @@
 	"scripts": {
 		"dev": "wrangler dev",
 		"deploy": "wrangler deploy --minify",
-		"cf-typegen": "wrangler types --env-interface CloudflareBindings"
+		"generate-types": "wrangler types",
+		"type-check": "pnpm run generate-types && tsc",
+		"test": "vitest"
 	},
 	"dependencies": {
-		"hono": "^4.7.8"
+		"@lucia-auth/adapter-sqlite": "^3.0.2",
+		"argon2": "^0.43.0",
+		"hono": "^4.7.8",
+		"lucia": "^3.2.2",
+		"oslo": "^1.2.1"
 	},
 	"devDependencies": {
+		"@cloudflare/vitest-pool-workers": "^0.8.27",
+		"@mswjs/interceptors": "^0.38.6",
+		"msw": "^2.8.2",
+		"typescript": "^5.8.3",
+		"vitest": "^3.1.3",
 		"wrangler": "^4.14.1"
 	}
 }
