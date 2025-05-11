@@ -2,12 +2,12 @@
 
 ## 1. Introduction
 
-This document outlines the plan to replace the current basic cookie-based authentication in the Perfect Pitch application with BetterAuth. BetterAuth is envisioned as a modern, session-based authentication library/solution that is framework-agnostic and well-suited for serverless environments like Cloudflare Workers. This upgrade aims to enhance security, provide robust session management, and establish a more scalable authentication foundation.
+This document outlines the plan to replace the current basic cookie-based authentication in the Perfect Pitch application with `better-auth` (version 1.2.7). `better-auth` is a modern, session-based authentication library, framework-agnostic, and well-suited for serverless environments like Cloudflare Workers. This upgrade aims to enhance security, provide robust session management, and establish a more scalable authentication foundation.
 
 This plan references:
 
 - [`docs/ARCHITECTURE.md`](./ARCHITECTURE.md) for the existing system overview.
-- [`docs/D1_DATABASE_PLAN.md`](./D1_DATABASE_PLAN.md) for the D1 database schema which will be extended.
+- [`docs/D1_DATABASE_PLAN.md`](./D1_DATABASE_PLAN.md) for the D1 database schema which will be integrated with `better-auth`.
 
 ## 1.A Development Tooling & Workflow
 
@@ -21,153 +21,124 @@ This project adheres to specific tooling and workflow guidelines:
 - **Testing Framework:** The project uses **Vitest** for all testing purposes.
 - **Network Mocking:** Network requests in tests are mocked using **Mock Service Worker (MSW)**, specifically with `@mswjs/interceptors`.
 
-## 2. Research (Action Required)
+## 2. Research (Completed)
 
-**Objective:** To define the specifics of BetterAuth, confirm its suitability, best practices, and integration patterns for Cloudflare Workers and Cloudflare D1.
+**Objective:** To define the specifics of `better-auth` (version 1.2.7), confirm its suitability, best practices, and integration patterns for Cloudflare Workers and Cloudflare D1.
 
-**Status:** If BetterAuth is a specific library, research should be conducted. If it's a placeholder for a custom or yet-to-be-defined solution, this section will involve defining its core requirements.
+**Status: Completed.**
 
-**Action Required:**
+**Key Research Findings Summary:**
 
-- The development team should:
-  - If BetterAuth is a known library:
-    - Research official documentation and examples for Cloudflare Workers/Pages.
-    - Identify community packages or adapters for Cloudflare D1 (e.g., a generic D1 adapter or one specific to BetterAuth if it exists).
-    - Determine best practices for session management, password hashing (e.g., Argon2id, scrypt, bcrypt), and security in a serverless context with BetterAuth.
-    - Confirm compatibility with Hono framework.
-    - Define strategies for WebSocket authentication using BetterAuth sessions.
-  - If BetterAuth is a placeholder:
-    - Define core requirements for a secure and robust authentication system (e.g., password policies, session characteristics, MFA capabilities if needed).
-    - Outline the desired features and security standards.
-    - Mark sections in this plan that will require specific details once BetterAuth's implementation is chosen/defined.
+- **Library & Version:** The target is `better-auth` npm package, version 1.2.7. Official documentation is at [`https://www.better-auth.com/docs`](https://www.better-auth.com/docs).
+- **`BETTER_AUTH_URL`:** This environment variable (e.g., `https://your-worker.your-account.workers.dev`) defines the base URL of the application where `better-auth` is running, not a separate service URL.
+- **Cloudflare D1 Integration:** `better-auth` integrates with D1 using `kysely-d1`. It supports database configuration via Kysely dialects and is expected to handle automatic database management and migrations for its necessary tables (users, sessions, credentials).
+- **Password Management:** `better-auth` provides secure email and password authentication. While the specific default hashing algorithm for v1.2.7 was not explicitly detailed, it's expected to use a strong, modern algorithm. Given `argon2` is a project dependency, `better-auth` might leverage it or a similar robust method.
+- **Session Management:** `better-auth` has built-in account and session management, storing sessions in the configured D1 database. Session validation will occur via Hono middleware, likely using a cookie named `auth-session`.
+- **Core API:** `better-auth` provides methods/handlers for user registration, login, logout, and retrieving authenticated user details.
+- **Hono & WebSocket:** Integration with Hono is achieved via middleware for route protection. WebSocket authentication involves validating the `better-auth` session cookie during the upgrade request.
+- **Dependencies:** Key dependencies include `better-auth`, `kysely`, and `kysely-d1`.
 
-This plan will proceed based on general principles of a robust authentication system, which should be validated and detailed by the above research/definition.
+These findings have been incorporated into the architectural design and implementation steps below.
 
 ## 3. Architectural Design
 
-This section details the proposed architecture for integrating BetterAuth into Perfect Pitch.
+This section details the proposed architecture for integrating `better-auth` into Perfect Pitch.
 
 ### 3.1. Core Components
 
-- **BetterAuth Instance/Module:** A configured instance or set of modules for BetterAuth, initialized with an adapter for Cloudflare D1 or direct D1 integration logic.
-- **Cloudflare D1 Adapter/Integration:** Logic to handle database interactions for users and sessions with Cloudflare D1.
-- **Hono Middleware:** Middleware to validate sessions and protect routes.
-- **D1 Database:** Cloudflare D1 will store user credentials (hashed passwords) and session information.
+- **`better-auth` Instance:** A configured instance of the `better-auth` library, initialized within the Cloudflare Worker (e.g., in `src/lib/auth.ts`). This instance will use `kysely-d1` for Cloudflare D1 integration.
+- **Cloudflare D1 Integration (`kysely-d1`):** The `better-auth` instance will be configured with a `D1Dialect` for database interactions. `better-auth` is expected to manage its own required tables within D1.
+- **Hono Middleware:** Middleware to validate sessions using `better-auth` and protect routes.
+- **D1 Database:** Cloudflare D1 will store user credentials (hashed passwords) and session information, managed by `better-auth`.
 
-### 3.2. Database Schema (Extending [`docs/D1_DATABASE_PLAN.md`](./D1_DATABASE_PLAN.md))
+### 3.2. Database Schema (Managed by `better-auth`, Extending [`docs/D1_DATABASE_PLAN.md`](./D1_DATABASE_PLAN.md))
 
-The existing `Users` table from [`docs/D1_DATABASE_PLAN.md`](./D1_DATABASE_PLAN.md) will be modified, and new tables for sessions and potentially keys/credentials will be added.
+While `better-auth` is expected to automatically manage its necessary tables (for users, sessions, credentials, etc.) in D1, we may still maintain our existing `Users` table from [`docs/D1_DATABASE_PLAN.md`](./D1_DATABASE_PLAN.md) for application-specific user data not directly managed by `better-auth`, or link to `better-auth`'s user identifiers.
 
-**Modified `Users` Table:**
+**Existing `Users` Table (Review for `better-auth` integration):**
+If `better-auth` creates its own user table, this table might store a foreign key to `better-auth`'s user ID or be used for application-specific profile data.
 
 ```sql
--- From docs/D1_DATABASE_PLAN.md, with additions for BetterAuth
-CREATE TABLE Users (
-    user_id TEXT PRIMARY KEY, -- Standard identifier for the user
-    username TEXT UNIQUE NOT NULL,
-    -- hashed_password TEXT NOT NULL, -- This might move to a separate 'user_credentials' table depending on BetterAuth design
+-- From docs/D1_DATABASE_PLAN.md
+CREATE TABLE IF NOT EXISTS Users (
+    user_id TEXT PRIMARY KEY, -- Standard identifier for the user in our application
+    username TEXT UNIQUE NOT NULL, -- Application-specific username
+    -- Consider adding a better_auth_user_id TEXT UNIQUE to link to better-auth's user table
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL
 );
--- Existing indexes on Users table should be maintained or reviewed.
 ```
 
-**New `user_sessions` Table (Generic Example):**
+**`better-auth` Managed Tables (Conceptual):**
+`better-auth` will create and manage tables similar to the following. The exact schema will be determined by `better-auth`'s internal migrations.
 
-```sql
-CREATE TABLE user_sessions (
-    id TEXT PRIMARY KEY, -- Session ID
-    user_id TEXT NOT NULL,
-    expires_at TIMESTAMP NOT NULL,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,
-    -- Additional fields like user_agent, ip_address might be considered for security auditing
-    FOREIGN KEY (user_id) REFERENCES Users(user_id) ON DELETE CASCADE
-);
-CREATE INDEX idx_user_sessions_user_id ON user_sessions(user_id);
-```
+- `ba_users` (or similar for user identity)
+- `ba_sessions` (for session management)
+- `ba_credentials` (for storing hashed passwords, etc.)
 
-**New `user_credentials` Table (Example, if separating credentials):**
-This table would store various credential types, including hashed passwords.
-
-```sql
-CREATE TABLE user_credentials (
-    id TEXT PRIMARY KEY, -- e.g., 'password:johndoe' or a UUID
-    user_id TEXT NOT NULL,
-    type TEXT NOT NULL, -- e.g., 'password', 'oauth_google', 'totp'
-    hashed_secret TEXT, -- Hashed password, or other relevant secret
-    -- Other provider-specific fields
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,
-    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,
-    FOREIGN KEY (user_id) REFERENCES Users(user_id) ON DELETE CASCADE
-);
-CREATE INDEX idx_user_credentials_user_id ON user_credentials(user_id);
-CREATE INDEX idx_user_credentials_type ON user_credentials(type);
-```
-
-_Note: The exact schema will depend on the chosen/defined BetterAuth solution. The research/definition step must confirm this._
+_Note: The D1 integration setup for `better-auth` using `kysely-d1` will allow it to perform these operations. We will not manually create these `ba_\*`tables;`better-auth` handles this.\_
 
 ### 3.3. Password Handling
 
-- **Hashing Algorithm:** Use a strong, modern hashing algorithm (e.g., **Argon2id, scrypt, or bcrypt**). The specific choice should be confirmed during the BetterAuth definition phase.
-- **Storage:** Hashed passwords will be stored securely, likely in the `user_credentials` table. Plaintext passwords will never be stored.
-- **[Placeholder for BetterAuth]:** Specific salt management or key derivation details if applicable to BetterAuth.
+- **Hashing Algorithm:** `better-auth` employs a strong, modern hashing algorithm for password security. This is a core feature of the library.
+- **Storage:** Hashed passwords will be securely stored by `better-auth` in its designated D1 table (e.g., `ba_credentials`). Plaintext passwords will never be stored.
+- **Salt Management:** Salt management and key derivation are handled internally by `better-auth` as part of its secure password handling mechanisms.
 
 ### 3.4. Session Management
 
-- **Session Creation:** Upon successful login, BetterAuth will create a session and store its details.
-- **Session ID:** A unique, cryptographically strong session ID will be generated.
+- **Session Creation:** Upon successful login, `better-auth` will create a session and store its details in D1.
+- **Session ID:** A unique, cryptographically strong session ID will be generated by `better-auth`.
 - **Session Cookie:** The session ID will be sent to the client via a secure, HTTP-only, SameSite cookie.
-  - `Name`: e.g., `auth_session` (configurable)
+  - `Name`: e.g., `auth-session` (this is a common convention and was seen in middleware examples; likely configurable within `better-auth`).
   - `HttpOnly`: true
   - `Secure`: true (in production)
-  - `SameSite`: `Lax` or `Strict`
+  - `SameSite`: `Lax` or `Strict` (default `Lax` is common)
   - `Path`: `/`
-  - `Max-Age` or `Expires`: Define appropriate session duration.
-- **Session Validation:** For each authenticated request, middleware will:
-  1. Read the session cookie.
-  2. Validate the session ID with BetterAuth (checking against stored session data and expiry).
-  3. If valid, retrieve user information and attach it to the request context.
-  4. If invalid or expired, reject the request or redirect to login.
-- **Session Expiration:** Sessions will have an expiration time, managed by BetterAuth.
-- **Logout:** Invalidates the session (e.g., in the database or via a revocation list) and clears the session cookie on the client.
-- **[Placeholder for BetterAuth]:** Specifics on session renewal, idle timeout, or advanced session features.
+  - `Max-Age` or `Expires`: Appropriate session duration, configurable via `better-auth`.
+- **Session Validation:** For each authenticated request, Hono middleware will:
+  1.  Read the session cookie.
+  2.  Validate the session ID using `better-auth`'s methods (checking against stored session data in D1 and expiry).
+  3.  If valid, retrieve user information from `better-auth` and attach it to the request context.
+  4.  If invalid or expired, reject the request or redirect to login.
+- **Session Expiration:** Sessions will have an expiration time, managed by `better-auth`.
+- **Logout:** `better-auth` will provide a method to invalidate the session (e.g., in D1) and the application will be responsible for clearing the session cookie on the client.
+- **Advanced Features:** Session renewal, idle timeout, or other advanced session features will depend on `better-auth`'s capabilities and configuration.
 
 ### 3.5. API Route Protection
 
-- A Hono middleware function will be created using BetterAuth's session validation logic.
+- A Hono middleware function will be created, leveraging `better-auth`'s session validation methods (e.g., `auth.validateSession()`).
 - This middleware will be applied to all routes requiring authentication.
 - Unauthenticated access will result in a `401 Unauthorized` error or redirect.
 
 ### 3.6. WebSocket Authentication
 
-The current WebSocket connection likely relies on the existing `username` cookie. This will need to be updated:
+The current WebSocket connection logic will be updated:
 
-1.  **Connection Upgrade Request:** The client will send the BetterAuth session cookie with the WebSocket upgrade request.
+1.  **Connection Upgrade Request:** The client will send the `better-auth` session cookie with the WebSocket upgrade request.
 2.  **Server-Side Validation:**
-    - Before upgrading the connection, the Hono route handler for WebSockets (in [`src/routes/interview.ts`](../src/routes/interview.ts)) will use BetterAuth to validate the session cookie.
-    - If the session is valid, the user ID will be extracted and associated with the WebSocket connection within the `Interview` Durable Object.
+    - Before upgrading the connection, the Hono route handler for WebSockets (in [`src/routes/interview.ts`](../src/routes/interview.ts)) will use `better-auth`'s methods to validate the session cookie.
+    - If the session is valid, the user ID (obtained from `better-auth`'s session object) will be extracted and associated with the WebSocket connection within the `Interview` Durable Object.
     - If the session is invalid, the WebSocket connection upgrade will be rejected.
 3.  **Durable Object Context:** The authenticated `user_id` will be passed to or made available within the `Interview` Durable Object instance to authorize actions and associate data correctly.
-- **[Placeholder for BetterAuth]:** Any specific mechanisms BetterAuth provides for token-based auth or passing auth context.
 
-### 3.7. Data Flow Diagram (Conceptual - BetterAuth)
+### 3.7. Data Flow Diagram (Conceptual - `better-auth` integrated)
 
 ```mermaid
 graph TD
     A[Client Browser] -- 1. Navigate to Login Page --> F[Frontend UI (public/*.html)]
     F -- 2. Submit Credentials (e.g., username, password) --> B(Cloudflare Worker / Hono API)
-    B -- 3. /api/v1/auth/register or /api/v1/auth/login --> C{Auth Service (BetterAuth)}
-    C -- 4. Validate Credentials / Hash Password --> D[Cloudflare D1 (Users, user_credentials)]
-    C -- 5. Create Session --> E[Cloudflare D1 (user_sessions)]
-    C -- 6. Set Session Cookie --> B
+    B -- 3. /api/v1/auth/register or /api/v1/auth/login --> C{`better-auth` Lib (in Worker)}
+    C -- 4. Validate Credentials / Hash Password / Manage User --> D[Cloudflare D1 (`better-auth` tables)]
+    C -- 5. Create Session --> E[Cloudflare D1 (`better-auth` session table)]
+    C -- 6. Instruct Worker to Set Session Cookie --> B
     B -- 7. Respond with Success / Session Cookie --> A
     A -- 8. Subsequent Authenticated HTTP Request (with Session Cookie) --> B
-    B -- 9. Validate Session Cookie (BetterAuth Middleware) --> C
+    B -- 9. Validate Session Cookie (Hono Middleware using `better-auth` Lib) --> C
     C -- 10. Check Session --> E
     C -- 11. Fetch User --> D
     B -- 12. Grant Access / Process Request --> B
     A -- 13. WebSocket Upgrade Request (with Session Cookie) --> B
-    B -- 14. Validate Session Cookie (BetterAuth) before upgrade --> C
+    B -- 14. Validate Session Cookie (using `better-auth` Lib) before upgrade --> C
     C -- 15. Check Session --> E
     C -- 16. Fetch User --> D
     B -- 17. If Valid, Upgrade to WebSocket & Pass User Context --> G[Interview Durable Object]
@@ -176,113 +147,125 @@ graph TD
 
 ## 4. Implementation Steps
 
-1.  **Define/Select BetterAuth Solution:**
-    - Complete research or internal definition as per Section 2.
-    - Finalize core features, security parameters, and any specific library choices.
+1.  **Research `better-auth` Solution: (Completed)**
 
-2.  **Install Dependencies (if applicable):**
-    - The core BetterAuth library (if it's a third-party lib).
-    - Any D1 adapter or database interaction library needed for BetterAuth.
-    - Chosen password hashing library (e.g., `argon2`, `bcrypt`).
-    - `vitest`: The testing framework.
-    - `@mswjs/interceptors`: For network mocking in tests.
+    - Key features, D1 integration (`kysely-d1`), and API structure are understood.
 
-3.  **Configure BetterAuth:**
-    - Create a BetterAuth configuration module (e.g., `src/lib/betterAuth.ts` or `src/auth/betterAuth.ts`).
-    - Initialize BetterAuth with D1 integration, environment (dev/prod), and session cookie options.
-    - Define `User` and `Session` types/interfaces as needed.
-    - Store BetterAuth secrets (e.g., for signing session tokens, encryption keys) securely in Worker environment variables.
+2.  **Install Dependencies:**
 
-4.  **Update D1 Schema & Migrations:**
-    - Modify the `Users` table definition in your D1 migration scripts as per section 3.2.
-    - Add `CREATE TABLE` statements for `user_sessions` and `user_credentials` (or equivalent) to the migration script.
-    - Follow the migration process outlined in [`docs/D1_DATABASE_PLAN.md`](./D1_DATABASE_PLAN.md#4-implementation-steps) (section 4.3) to apply schema changes.
+    - `better-auth@1.2.7`: The core library.
       ```bash
-      # Example: Create a new migration file migrations/000X_betterauth_tables.sql
-      # wrangler d1 execute perfect-pitch-db --local --file=./migrations/000X_betterauth_tables.sql
-      # wrangler d1 execute perfect-pitch-db --file=./migrations/000X_betterauth_tables.sql
+      pnpm install better-auth@1.2.7
       ```
+    - `kysely` and `kysely-d1`: For D1 database interaction with `better-auth`.
+      ```bash
+      pnpm install kysely kysely-d1
+      ```
+    - `argon2`: Already listed in [`package.json`](../package.json) - `better-auth` will use its own secure hashing, but `argon2` can remain for other potential uses or if `better-auth` offers pluggable hashing.
+    - `vitest`: The testing framework (already set up).
+    - `@mswjs/interceptors`: For network mocking in tests (already set up).
+
+3.  **Configure `better-auth`:**
+
+    - Create a `better-auth` configuration module (e.g., `src/lib/auth.ts`).
+    - Initialize `better-auth` with:
+      - `secret`: `env.BETTER_AUTH_SECRET_KEY`
+      - `baseUrl`: `env.BETTER_AUTH_URL`
+      - `database`: Using `D1Dialect` with `database: env.DB` (D1 binding).
+    - Define `User` and `Session` types/interfaces if needed for interaction with `better-auth`, or use types provided by `better-auth`.
+    - Store `BETTER_AUTH_SECRET_KEY` securely in Worker environment variables (e.g., via `.dev.vars` for local development and Wrangler secrets for production).
+
+4.  **D1 Schema & Migrations:**
+
+    - `better-auth` is expected to handle the creation and migration of its own required tables (e.g., for users, sessions, credentials) through its `kysely-d1` integration.
+    - Review if any modifications are needed for the existing `Users` table (e.g., adding a column to link to `better-auth`'s user ID if maintaining a separate application-level user profile). If so, create a new D1 migration script.
+      ```bash
+      # Example: If needed, create migrations/000X_update_users_for_betterauth.sql
+      # wrangler d1 execute perfect-pitch-db --local --file=./migrations/000X_update_users_for_betterauth.sql
+      # wrangler d1 execute perfect-pitch-db --file=./migrations/000X_update_users_for_betterauth.sql
+      ```
+    - The primary schema setup for `better-auth` itself should be automatic upon its initialization if it includes migration capabilities.
 
 5.  **Develop New Authentication Service/Routes (e.g., in [`src/routes/auth.ts`](../src/routes/auth.ts)):**
+    Refer to `better-auth` official documentation for exact API method names and request/response structures.
+
     - **`POST /api/v1/auth/register`**:
-      - Takes necessary registration details (e.g., `username`, `password`).
-      - Hashes the password using the chosen algorithm.
-      - Creates a new user and associated credentials.
-      - Optionally, creates a session and logs the user in immediately.
+      - Takes registration details (e.g., email/username, password).
+      - Uses `better-auth` methods to create a new user and credentials.
+      - Optionally, creates a session and logs the user in immediately, as per `better-auth` features.
     - **`POST /api/v1/auth/login`**:
-      - Takes login credentials (e.g., `username`, `password`).
-      - Retrieves the user and verifies credentials.
-      - If valid, creates a BetterAuth session.
-      - Sets the session cookie in the response.
+      - Takes login credentials.
+      - Uses `better-auth` methods to retrieve the user and verify credentials.
+      - If valid, uses `better-auth` to create a session.
+      - Sets the session cookie in the response via `better-auth`'s cookie handling or by using headers provided by `better-auth`.
     - **`POST /api/v1/auth/logout`**:
-      - Validates the current session.
-      - Invalidates the session with BetterAuth.
+      - Validates the current session using `better-auth`.
+      - Uses `better-auth` methods to invalidate the session.
       - Clears the session cookie.
     - **`GET /api/v1/auth/me` (Optional):**
-      - Validates the session.
-      - Returns current user information (excluding sensitive data).
-    - **[Placeholder for BetterAuth]:** Endpoints for password reset, email verification, MFA setup, etc., if in scope.
+      - Validates the session using `better-auth`.
+      - Returns current user information (excluding sensitive data) obtained from `better-auth`.
+    - Address other potential endpoints like password reset, email verification as per `better-auth`'s capabilities and project requirements.
 
-6.  **Update Authentication Middleware (e.g., new file `src/middleware/betterAuth.ts`):**
+6.  **Create/Update Authentication Middleware (e.g., new file `src/middleware/auth.ts` or update existing):**
+
     - Create Hono middleware that:
-      - Reads the session cookie from the request.
-      - Uses BetterAuth to validate it.
-      - If valid, attaches `user` and `session` objects to `c.var` (Hono context).
+      - Reads the session cookie (e.g., `auth-session`) from the request.
+      - Uses `better-auth`'s session validation method (e.g., `auth.validateSession(token)`).
+      - If valid, attaches user and session objects (provided by `better-auth`) to `c.set('user', user)` (Hono context).
       - If invalid, throws an unauthorized error or redirects.
-    - Replace the current simple cookie check in [`src/index.ts`](../src/index.ts) or other protected routes with this new middleware.
+    - Apply this middleware to protected routes.
 
 7.  **Update WebSocket Authentication:**
+
     - Modify the WebSocket upgrade handler in [`src/routes/interview.ts`](../src/routes/interview.ts).
-    - Before calling `env.INTERVIEW.get(id).fetch(request)`, extract the session cookie.
-    - Use BetterAuth to validate the session.
-    - If valid, pass the `user.id` (or relevant user identifier) to the Durable Object.
+    - Before upgrading, extract the session cookie.
+    - Use `better-auth`'s session validation method.
+    - If valid, pass the `user.id` (or relevant user identifier from `better-auth`'s session object) to the Durable Object.
     - The `Interview` DO ([`src/interview.ts`](../src/interview.ts)) will need to be updated to receive and use this `user_id`.
 
 8.  **Update Frontend:**
-    - Modify [`public/auth.html`](../public/auth.html) to collect necessary details for login and registration.
-    - Update client-side JavaScript to call the new BetterAuth API endpoints.
+
+    - Modify [`public/auth.html`](../public/auth.html) to collect necessary details for login and registration compatible with `better-auth`.
+    - Update client-side JavaScript to call the new `better-auth` API endpoints.
     - Implement logout functionality.
 
 9.  **Testing:**
     - Write unit and integration tests for auth logic using **Vitest**.
-    - Utilize **Mock Service Worker (MSW)** with `@mswjs/interceptors` for network mocking.
-    - Test all authentication flows: registration, login, logout, session expiry/renewal, protected routes, WebSocket auth.
-    - Test password policies, MFA flows (if applicable).
+    - Utilize **Mock Service Worker (MSW)** with `@mswjs/interceptors` for network mocking, particularly for any interactions `better-auth` might make if it had external dependencies (though it primarily interacts with D1).
+    - Test all authentication flows: registration, login, logout, session expiry/renewal, protected routes, WebSocket auth as handled by `better-auth`.
     - Test with `wrangler dev --local` and in a deployed Cloudflare environment.
 
 ## 5. Security Considerations
 
-- **CSRF Protection:** Implement CSRF protection mechanisms (e.g., double-submit cookies, origin checking, or framework-provided solutions). This is crucial for any state-changing requests.
-- **Password Policy:** Enforce strong password policies (length, complexity, disallow common passwords) on client and server-side.
-- **Session Cookie Security:** Ensure session cookies are configured with `HttpOnly`, `Secure` (in production), and `SameSite=Lax` (or `Strict`). Set appropriate expiry.
-- **Rate Limiting:** Implement rate limiting on authentication endpoints (`/login`, `/register`, password reset) to prevent brute-force and denial-of-service attacks. Cloudflare's features can be leveraged.
-- **Input Validation:** Thoroughly validate and sanitize all user inputs on the server-side.
-- **Secure Secrets:** Store all secrets (BetterAuth instance secrets, API keys, encryption keys) as environment variables in Cloudflare Workers, not hardcoded.
+- **CSRF Protection:** Implement CSRF protection mechanisms if not handled by `better-auth` itself (e.g., double-submit cookies, custom header checks). This is crucial for any state-changing requests.
+- **Password Policy:** Rely on `better-auth`'s enforced password policies. If configurable, ensure they meet project requirements (length, complexity).
+- **Session Cookie Security:** `better-auth` should handle setting secure cookie attributes (`HttpOnly`, `Secure`, `SameSite`). Verify these defaults or configure them.
+- **Rate Limiting:** Implement rate limiting on authentication endpoints (`/login`, `/register`) to prevent brute-force attacks. Cloudflare's features can be leveraged.
+- **Input Validation:** Thoroughly validate and sanitize all user inputs on the server-side before passing to `better-auth` methods, though `better-auth` should also perform its own validation.
+- **Secure Secrets:** Store `BETTER_AUTH_SECRET_KEY` as an environment variable in Cloudflare Workers.
 - **HTTPS:** Ensure the entire application is served over HTTPS in production.
-- **Regular Dependency Updates:** Keep BetterAuth (if third-party) and related dependencies updated.
-- **Permissions & Authorization:** BetterAuth handles authentication. Authorization logic (what a user can do) must be implemented separately within the application.
-- **MFA (Multi-Factor Authentication):** Consider requirements for MFA (e.g., TOTP, WebAuthn) and plan for its integration if part of BetterAuth's scope.
-- **Audit Logging:** Implement logging for significant authentication events (logins, failures, password changes).
-- **[Placeholder for BetterAuth]:** Any security features or considerations specific to the chosen BetterAuth solution.
+- **Regular Dependency Updates:** Keep `better-auth`, `kysely`, `kysely-d1`, and related dependencies updated.
+- **Permissions & Authorization:** `better-auth` handles authentication. Authorization logic (what a user can do) must be implemented separately within the application.
+- **MFA (Multi-Factor Authentication):** If `better-auth` supports MFA and it's a project requirement, plan for its integration.
+- **Audit Logging:** Implement logging for significant authentication events (logins, failures, password changes), potentially using hooks or events from `better-auth` if available.
 
 ## 6. Potential Challenges & Migration Steps
 
 ### 6.1. Migration from Current Basic Auth
 
 - **Existing Users:** The current system only stores `username` in a cookie. There are no passwords or user accounts in a database.
-  - **Option 1 (Recommended): Force Re-registration:** Users will need to create new accounts with BetterAuth. This is the simplest and cleanest approach for a new, robust system.
-  - **Option 2 (Complex, Not Recommended): Attempt to "Claim" Usernames:** This adds significant complexity and potential security risks.
-- **Data Association:** Align with the D1 "start fresh" strategy ([`docs/D1_DATABASE_PLAN.md`](./D1_DATABASE_PLAN.md#section-4-5)). Focus on new user registrations. Migration of historical data associated with old `username` cookies is out of scope for this initial phase.
+  - **Strategy: Force Re-registration:** Users will need to create new accounts with `better-auth`. This is the simplest and cleanest approach.
+- **Data Association:** Align with the D1 "start fresh" strategy ([`docs/D1_DATABASE_PLAN.md`](./D1_DATABASE_PLAN.md#section-4-5)). Focus on new user registrations. Migration of historical data associated with old `username` cookies is out of scope.
 
 ### 6.2. Other Potential Challenges
 
-- **BetterAuth D1 Integration:** Ensuring seamless and performant integration with Cloudflare D1.
+- **`better-auth` D1 Integration with `kysely-d1`:** Ensuring seamless and performant integration, and understanding how `better-auth` manages its migrations.
 - **Cold Starts:** Serverless cold starts impacting initial auth requests (general serverless consideration).
-- **Testing Complexity:** Thoroughly testing all auth flows, especially if custom logic is involved in BetterAuth.
-- **Durable Object Interaction:** Reliably passing authenticated user context to Durable Objects.
-- **Learning Curve:** If BetterAuth is a new library or custom solution, team familiarization will be needed.
-- **Defining "BetterAuth":** If BetterAuth is currently a placeholder, the primary challenge is defining its requirements and choosing/designing the actual solution.
+- **Testing Complexity:** Thoroughly testing all `better-auth` flows.
+- **Durable Object Interaction:** Reliably passing authenticated user context (obtained from `better-auth`) to Durable Objects.
+- **Learning Curve:** Team familiarization with `better-auth` v1.2.7 API and its `kysely-d1` integration.
 
 ## 7. Conclusion
 
-Integrating BetterAuth will significantly improve the security and robustness of Perfect Pitch's authentication system. This requires careful definition (if BetterAuth is a placeholder) or research (if it's a specific library), database schema changes, new service logic, and updates to middleware and WebSocket handling. The benefits of a modern, dedicated, and well-understood authentication solution are substantial. Thorough planning, clear definition/research, and rigorous testing will be key to a successful implementation.
+Integrating `better-auth` (v1.2.7) will significantly improve the security and robustness of Perfect Pitch's authentication system. The research has clarified its operation with Cloudflare Workers, D1 (via `kysely-d1`), and Hono. This plan outlines the necessary database considerations, new service logic, and updates to middleware and WebSocket handling. Thorough implementation and rigorous testing will be key to a successful upgrade.

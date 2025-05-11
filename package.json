@@ -8,10 +8,10 @@
 		"test": "vitest"
 	},
 	"dependencies": {
-		"@lucia-auth/adapter-sqlite": "^3.0.2",
 		"argon2": "^0.43.0",
+		"better-auth": "^1.2.7",
 		"hono": "^4.7.8",
-		"lucia": "^3.2.2",
+		"kysely-d1": "^0.4.0",
 		"oslo": "^1.2.1"
 	},
 	"devDependencies": {

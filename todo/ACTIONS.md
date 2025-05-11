@@ -20,28 +20,28 @@ This document tracks the progress of the 'perfect-pitch' AI interview platform.
   - [x] Define `Interview_Skills` join table schema and create migration ([`migrations/0004_create_interview_skills_table.sql`](./migrations/0004_create_interview_skills_table.sql:1))
   - [x] Apply `Interview_Skills` join table migration
 
-**Important Note:** After completing any significant feature implementation or architectural change, ensure the [`docs/ARCHITECTURE.MD`](./docs/ARCHITECTURE.MD:1) document is updated to reflect these changes.
+**Important Note:** After completing any significant feature implementation or architectural change, ensure the [`docs/ARCHITECTURE.md`](./docs/ARCHITECTURE.md:1) document is updated to reflect these changes.
 
 ## 2. Phase 1: Foundational Infrastructure & Core Data
 
-- **Core Infrastructure: Lucia Auth Implementation** (as per [`docs/LUCIA_AUTH_PLAN.md`](./docs/LUCIA_AUTH_PLAN.md:1))
+- **Core Infrastructure: BetterAuth Implementation** (as per [`docs/BETTERAUTH_PLAN.md`](./docs/BETTERAUTH_PLAN.md:1))
 
-  - [ ] Conduct research on Lucia Auth (focusing on official documentation, D1 adapters, best practices, Hono compatibility, WebSocket authentication)
-  - [ ] Install Dependencies (`lucia`, `@lucia-auth/adapter-d1`, password hashing library)
-  - [ ] Configure Lucia Auth (create config file, initialize with D1 adapter, define types, store secrets)
-  - [ ] Update D1 Schema & Migrations (modify `Users` table, add `user_sessions` and `user_keys` tables, apply migrations)
-  - [ ] Develop New Authentication Service/Routes (implement `POST /api/v1/auth/register`, `POST /api/v1/auth/login`, `POST /api/v1/auth/logout`, optional `GET /api/v1/auth/me`)
-  - [ ] Update Authentication Middleware (create Hono middleware for session validation, replace current cookie check)
-  - [ ] Update WebSocket Authentication (modify handler in [`src/routes/interview.ts`](./src/routes/interview.ts:1) to use Lucia, update `Interview` DO)
-  - [ ] Update Frontend (modify [`public/auth.html`](./public/auth.html:1) for new auth endpoints)
-  - [ ] Testing (unit/integration tests for all auth flows)
-  - [ ] Address Security Considerations (CSRF, password policy, cookie security, rate limiting, input validation, secure secrets, HTTPS, dependency updates, authorization logic)
-    - [ ] Define and enforce a strong password policy (e.g., length, complexity, disallow common passwords).
-    - [ ] Ensure session cookies use HttpOnly, Secure, and SameSite=Lax/Strict attributes.
-    - [ ] Implement brute-force protection mechanisms (e.g., account lockout after multiple failed login attempts) in addition to rate limiting.
-    - [ ] Detail specific CSRF protection mechanisms to be used with Hono and Lucia Auth (e.g., double-submit cookies, synchronizer token pattern).
+  - [ ] Define/Select BetterAuth Solution (Research/define core features, security parameters, library choices as per Section 2 of [`docs/BETTERAUTH_PLAN.md`](./docs/BETTERAUTH_PLAN.md:24))
+  - [ ] Install Dependencies (BetterAuth library, D1 adapter, password hashing library e.g., `argon2`, `bcrypt`, `vitest`, `@mswjs/interceptors` as per Sec 4.2 of [`docs/BETTERAUTH_PLAN.md`](./docs/BETTERAUTH_PLAN.md:183))
+  - [ ] Configure BetterAuth (Create config module e.g., `src/lib/betterAuth.ts`, init with D1, env, cookie options, types, secrets as per Sec 4.3 of [`docs/BETTERAUTH_PLAN.md`](./docs/BETTERAUTH_PLAN.md:190))
+  - [ ] Update D1 Schema & Migrations (Modify `Users` table, add `user_sessions`, `user_credentials` tables as per Sec 3.2 & 4.4 of [`docs/BETTERAUTH_PLAN.md`](./docs/BETTERAUTH_PLAN.md:57), apply migrations)
+  - [ ] Develop New Authentication Service/Routes (in `src/routes/auth.ts`: `POST /api/v1/auth/register`, `POST /api/v1/auth/login`, `POST /api/v1/auth/logout`, optional `GET /api/v1/auth/me` as per Sec 4.5 of [`docs/BETTERAUTH_PLAN.md`](./docs/BETTERAUTH_PLAN.md:206))
+  - [ ] Update Authentication Middleware (Create Hono middleware e.g. `src/middleware/betterAuth.ts` for session validation, attach user/session to context as per Sec 4.6 of [`docs/BETTERAUTH_PLAN.md`](./docs/BETTERAUTH_PLAN.md:226))
+  - [ ] Update WebSocket Authentication (Modify handler in [`src/routes/interview.ts`](./src/routes/interview.ts:1) for BetterAuth, update `Interview` DO in [`src/interview.ts`](./src/interview.ts:1) for `user_id` as per Sec 4.7 of [`docs/BETTERAUTH_PLAN.md`](./docs/BETTERAUTH_PLAN.md:234))
+  - [ ] Update Frontend (Modify [`public/auth.html`](./public/auth.html:1) for new BetterAuth API endpoints as per Sec 4.8 of [`docs/BETTERAUTH_PLAN.md`](./docs/BETTERAUTH_PLAN.md:241))
+  - [ ] Testing (Unit/integration tests for all auth flows with Vitest & MSW as per Sec 4.9 of [`docs/BETTERAUTH_PLAN.md`](./docs/BETTERAUTH_PLAN.md:246))
+  - [ ] Address Security Considerations (CSRF, password policy, cookie security, rate limiting, input validation, secure secrets, HTTPS, dependency updates, authorization logic, MFA considerations, audit logging as per Sec 5 of [`docs/BETTERAUTH_PLAN.md`](./docs/BETTERAUTH_PLAN.md:253))
+    - [ ] Define and enforce a strong password policy (e.g., length, complexity, disallow common passwords using Argon2id, scrypt, or bcrypt).
+    - [ ] Ensure session cookies use HttpOnly, Secure, and SameSite=Lax/Strict attributes with appropriate expiry.
+    - [ ] Implement rate limiting on authentication endpoints and consider brute-force protection (e.g., account lockout).
+    - [ ] Implement CSRF protection mechanisms (e.g., double-submit cookies, origin checking).
     - [ ] Plan for secure session invalidation on logout, password change, and prolonged inactivity.
-  - [ ] Address Migration from Current Basic Auth (decide on user re-registration, data association for historical data if needed)
+  - [ ] Address Migration from Current Basic Auth (Force re-registration as per Sec 6.1 of [`docs/BETTERAUTH_PLAN.md`](./docs/BETTERAUTH_PLAN.md:270))
 
 - **Core Infrastructure: Further D1 Database Schema Expansion** (from [`docs/D1_DATABASE_PLAN.md`](./docs/D1_DATABASE_PLAN.md:1))
 
